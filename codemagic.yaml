@@ -8,6 +8,8 @@ workflows:
       flutter: stable
 
     scripts:
+      - name: Navigate to project root
+        script: cd flutter-ironmind-main
       - name: Get dependencies
         script: flutter pub get
       - name: Build APK
