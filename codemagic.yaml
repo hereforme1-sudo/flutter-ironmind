@@ -1,15 +1,40 @@
 workflows:
-  default:
-    name: Build Flutter IronMind APK
-    max_build_duration: 120
-    instance_type: mac_mini_m2
-
+  android_release:
+    name: Android Release (regenerate platforms)
     environment:
-      flutter: 3.19.6   # <-- versiune stabilă care merge cu setup-ul tău
-      xcode: 15.0       # (opțional, dar bun pentru iOS)
-
+      flutter: stable
     scripts:
-      - name: Get dependencies
+      - name: Flutter SDK version
+        script: flutter --version
+      - name: Regenerate platform folders (Gradle-compatible)
+        script: |
+          rm -rf android ios
+          flutter create .
+      - name: Fetch dependencies
         script: flutter pub get
+      - name: Analyze (optional)
+        script: flutter analyze || true
       - name: Build APK
         script: flutter build apk --release
+    artifacts:
+      - build/app/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com
+
+  android_debug:
+    name: Android Debug (quick)
+    environment:
+      flutter: stable
+    scripts:
+      - name: Regenerate platform folders (Gradle-compatible)
+        script: |
+          rm -rf android ios
+          flutter create .
+      - name: Fetch dependencies
+        script: flutter pub get
+      - name: Build debug APK
+        script: flutter build apk --debug
+    artifacts:
+      - build/app/outputs/**/*.apk
