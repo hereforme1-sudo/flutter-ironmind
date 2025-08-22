@@ -5,7 +5,8 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
-      flutter: stable
+      flutter: 3.19.6   # <-- versiune stabilă care merge cu setup-ul tău
+      xcode: 15.0       # (opțional, dar bun pentru iOS)
 
     scripts:
       - name: Get dependencies
