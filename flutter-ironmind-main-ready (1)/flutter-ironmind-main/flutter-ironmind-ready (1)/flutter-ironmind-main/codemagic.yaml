@@ -1,0 +1,305 @@
+# Codemagic configuration for JARVIS AI Assistant
+# Convert React web app to Android/iOS mobile app
+
+workflows:
+  jarvis-mobile-build:
+    name: JARVIS AI Assistant - Mobile Build
+    max_build_duration: 30
+    
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      node: 18
+      
+      vars:
+        # Add your API keys in Codemagic UI as encrypted variables
+        ELEVENLABS_API_KEY: Encrypted(Z0FBQUFBQmdBNS1j...)  # Replace with your encrypted key
+        
+      groups:
+        - keystore_credentials # Android signing
+        - app_store_credentials # iOS signing
+        
+    cache:
+      cache_paths:
+        - $HOME/.npm
+        - node_modules
+        
+    triggering:
+      events:
+        - push
+        - tag
+        - pull_request
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+          source: true
+        - pattern: 'develop'
+          include: true
+          source: true
+          
+    scripts:
+      - name: Install Node dependencies
+        script: |
+          npm ci
+          
+      - name: Build React app
+        script: |
+          npm run build
+          
+      - name: Setup Capacitor for mobile conversion
+        script: |
+          # Install Capacitor
+          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/ios
+          
+          # Initialize Capacitor
+          npx cap init jarvis-ai-assistant app.jarvis.assistant --web-dir=dist
+          
+      - name: Configure Capacitor
+        script: |
+          # Update capacitor.config.ts for mobile optimization
+          cat > capacitor.config.ts << EOF
+          import { CapacitorConfig } from '@capacitor/cli';
+          
+          const config: CapacitorConfig = {
+            appId: 'app.jarvis.assistant',
+            appName: 'JARVIS AI Assistant',
+            webDir: 'dist',
+            bundledWebRuntime: false,
+            server: {
+              androidScheme: 'https'
+            },
+            plugins: {
+              SplashScreen: {
+                launchShowDuration: 2000,
+                backgroundColor: "#0A0A0A",
+                androidSplashResourceName: "splash",
+                showSpinner: true,
+                spinnerColor: "#00D4FF"
+              },
+              Keyboard: {
+                resize: "body"
+              },
+              StatusBar: {
+                style: "dark",
+                backgroundColor: "#0A0A0A"
+              }
+            },
+            android: {
+              allowMixedContent: true,
+              captureInput: true,
+              webContentsDebuggingEnabled: true
+            },
+            ios: {
+              scheme: "JARVIS",
+              contentInset: "automatic"
+            }
+          };
+          
+          export default config;
+          EOF
+          
+      - name: Add mobile permissions (Android)
+        script: |
+          # Create Android permissions in android/app/src/main/AndroidManifest.xml
+          mkdir -p android/app/src/main
+          cat > android/app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="app.jarvis.assistant">
+              
+              <!-- Permissions for JARVIS functionality -->
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+              
+              <!-- Optional permissions for enhanced functionality -->
+              <uses-permission android:name="android.permission.VIBRATE" />
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+              
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="@string/app_name"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:supportsRtl="true"
+                  android:theme="@style/AppTheme"
+                  android:usesCleartextTraffic="true">
+                  
+                  <activity
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:name="app.jarvis.assistant.MainActivity"
+                      android:theme="@style/AppTheme.NoActionBarLaunch">
+                      
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+                  
+                  <provider
+                      android:name="androidx.core.content.FileProvider"
+                      android:authorities="${applicationId}.fileprovider"
+                      android:exported="false"
+                      android:grantUriPermissions="true">
+                      <meta-data
+                          android:name="android.support.FILE_PROVIDER_PATHS"
+                          android:resource="@xml/file_paths"></meta-data>
+                  </provider>
+              </application>
+          </manifest>
+          EOF
+          
+      - name: Add iOS permissions
+        script: |
+          # Create iOS Info.plist permissions
+          mkdir -p ios/App/App
+          cat > ios/App/App/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleDisplayName</key>
+              <string>JARVIS AI Assistant</string>
+              <key>CFBundleExecutable</key>
+              <string>$(EXECUTABLE_NAME)</string>
+              <key>CFBundleIdentifier</key>
+              <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>$(PRODUCT_NAME)</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>$(MARKETING_VERSION)</string>
+              <key>CFBundleVersion</key>
+              <string>$(CURRENT_PROJECT_VERSION)</string>
+              
+              <!-- Microphone permission for voice commands -->
+              <key>NSMicrophoneUsageDescription</key>
+              <string>JARVIS needs microphone access to process your voice commands and provide intelligent assistance.</string>
+              
+              <!-- Speech recognition permission -->
+              <key>NSSpeechRecognitionUsageDescription</key>
+              <string>JARVIS uses speech recognition to understand and respond to your voice commands in Romanian and English.</string>
+              
+              <!-- Network permissions -->
+              <key>NSAppTransportSecurity</key>
+              <dict>
+                  <key>NSAllowsArbitraryLoads</key>
+                  <true/>
+                  <key>NSAllowsArbitraryLoadsInWebContent</key>
+                  <true/>
+              </dict>
+              
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>UILaunchStoryboardName</key>
+              <string>LaunchScreen</string>
+              <key>UIMainStoryboardFile</key>
+              <string>Main</string>
+              <key>UIRequiredDeviceCapabilities</key>
+              <array>
+                  <string>armv7</string>
+              </array>
+              <key>UISupportedInterfaceOrientations</key>
+              <array>
+                  <string>UIInterfaceOrientationPortrait</string>
+                  <string>UIInterfaceOrientationLandscapeLeft</string>
+                  <string>UIInterfaceOrientationLandscapeRight</string>
+              </array>
+          </dict>
+          </plist>
+          EOF
+          
+      - name: Sync Capacitor platforms
+        script: |
+          # Add Android platform
+          npx cap add android
+          
+          # Add iOS platform  
+          npx cap add ios
+          
+          # Sync web assets to native platforms
+          npx cap sync
+          
+      - name: Build Android APK
+        script: |
+          cd android
+          ./gradlew assembleRelease --stacktrace
+          
+      - name: Build iOS (if on macOS)
+        script: |
+          if [[ "$OSTYPE" == "darwin"* ]]; then
+            cd ios/App
+            xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath App.xcarchive archive
+            xcodebuild -exportArchive -archivePath App.xcarchive -exportPath . -exportOptionsPlist ExportOptions.plist
+          else
+            echo "Skipping iOS build on non-macOS environment"
+          fi
+          
+    artifacts:
+      # Android artifacts
+      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/**/*.aab
+      
+      # iOS artifacts (if built)
+      - ios/App/*.ipa
+      
+      # Web build artifacts
+      - dist/**/*
+      
+    publishing:
+      email:
+        recipients:
+          - your-email@domain.com
+        notify:
+          success: true
+          failure: true
+          
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: internal
+        submit_as_draft: true
+        
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        beta_groups:
+          - Internal Testing
+          
+  # Alternative workflow for web-only deployment
+  jarvis-web-deploy:
+    name: JARVIS Web App Deploy
+    max_build_duration: 15
+    
+    environment:
+      node: 18
+      
+    scripts:
+      - name: Install dependencies
+        script: npm ci
+        
+      - name: Build for production
+        script: npm run build
+        
+      - name: Deploy to static hosting
+        script: |
+          # Add your preferred hosting deployment here
+          # Examples: Netlify, Vercel, Firebase Hosting, AWS S3, etc.
+          echo "Add your deployment script here"
+          
+    artifacts:
+      - dist/**/*
+      
+    publishing:
+      email:
+        recipients:
+          - your-email@domain.com
